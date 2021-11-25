@@ -7,25 +7,21 @@ cuefmt:
 .PHONY: cuelint
 cuelint: cuefmt
 	@test -z "$$(git status -s . | grep -e "^ M"  | grep .cue | cut -d ' ' -f3 | tee /dev/stderr)"
+	@echo "Cue files are well formatted!"
 
 .PHONY: shellcheck
 shellcheck:
-	shellcheck ./tests/*.bats ./tests/*.bash
-	shellcheck ./stdlib/*.bats ./stdlib/*.bash
+	@shellcheck ./stdlib/*.bats ./stdlib/*.bash
+	@echo "Bats files are well formatted!"
 
 .PHONY: lint
 lint: shellcheck cuelint
 
-.PHONY: integration
-integration: core-integration universe-test
-
-.PHONY: core-integration
-core-integration:
-	yarn --cwd "./tests" install
-	DAGGER_BINARY="/usr/local/bin/dagger" yarn --cwd "./tests" test
-
 .PHONY: universe-test
 universe-test:
 	yarn --cwd "./universe" install
-	DAGGER_BINARY="/usr/local/bin/dagger" yarn --cwd "./universe" test
+
+	# Set dagger path if no one exist
+	@if [ -z "$DAGGER_BINARY" ]; then DAGGER_BINARY="/usr/local/bin/dagger"; fi
+	yarn --cwd "./universe" test
 
