@@ -1,0 +1,26 @@
+# IDE
+.idea/
+.vscode/
+
+# Misc
+log.txt
+.DS_Store
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary and reports
+*.test
+**/*/report.xml
+
+# Node modules
+**/*/node_modules/
+**/*/dist/
+
+# Integration CI dagger.mod, dagger.sum
+**/*/dagger.mod
+**/*/dagger.sum
