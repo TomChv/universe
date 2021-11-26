@@ -1,0 +1,244 @@
+# This workflow will execute continuous integration with Dagger binary built
+# from the main branch of Dagger repository
+name: Continuous Integration with latest binary
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  setup:
+    name: Set up
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out Universe
+        uses: actions/checkout@v2
+        with:
+          repository: dagger/universe
+          path: universe
+          fetch-depth: 0
+
+      - name: Check out Dagger
+        uses: actions/checkout@v2
+        with:
+          repository: dagger/dagger
+          token: ${{ secrets.DAGGER_PAT }}
+          path: dagger
+          fetch-depth: 0
+
+      - name: Install cue
+        run: |
+          # Retrieve cue version from Dagger
+          export CUE_VERSION=$(grep cue ./dagger/go.mod | cut -d ' ' -f2)
+          export CUE_TARBALL="cue_${CUE_VERSION}_linux_amd64.tar.gz"
+
+          # Install cue
+          echo "Installing cue version ${CUE_VERSION}"
+          curl -L https://github.com/cue-lang/cue/releases/download/${CUE_VERSION}/${CUE_TARBALL} | sudo tar zxf - -C /usr/local/bin
+
+      - name: Install sops
+        run: |
+          sudo curl -L -o /usr/local/bin/sops https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+          sudo chmod +x /usr/local/bin/sops
+
+      - name: Import Dagger CI key
+        env:
+          DAGGER_AGE_KEY: ${{ secrets.DAGGER_AGE_KEY }}
+        run: |
+          mkdir -p "$HOME/.config/dagger"
+          echo "$DAGGER_AGE_KEY" > ~/.config/dagger/keys.txt
+
+      - name: Cache repository
+        uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: |
+            /usr/local/bin/cue
+            /usr/local/bin/sops
+            ~/.config/dagger/keys.txt
+            universe
+            dagger
+          key: ${{ github.sha }}-latest
+
+  lint:
+    needs: setup
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Restore set up
+        uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: |
+            /usr/local/bin/cue
+            /usr/local/bin/sops
+            ~/.config/dagger/keys.txt
+            universe
+            dagger
+          key: ${{ github.sha }}-latest
+
+      - name: Lint
+        working-directory: universe
+        run: |
+          make lint
+
+       - name: Markdown Lint
+         uses: avto-dev/markdown-lint@v1
+         with:
+           config: ./universe/.markdownlint.yaml
+           args: ./universe/*.md
+
+  universe:
+    needs: setup
+    name: Universe
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      localstack:
+        image: localstack/localstack:0.12.16
+        env:
+          SERVICES: s3, ecr
+          LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+        ports:
+          - 4566:4566
+          - 4571:4571
+          - 4510:4510
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/health"
+          --health-start-period 5s
+          --health-timeout 5s
+          --health-interval 5s
+          --health-retries 10
+
+    steps:
+      - name: Restore set up
+        uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: |
+            /usr/local/bin/cue
+            /usr/local/bin/sops
+            ~/.config/dagger/keys.txt
+            universe
+            dagger
+          key: ${{ github.sha }}-latest
+
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+
+      - name: Setup Kind Kubernetes Cluster
+        uses: helm/kind-action@v1.2.0
+
+      - name: Provision Localstack AWS resources
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-2
+        run: |
+          aws --endpoint-url=http://localhost:4566 s3 mb s3://dagger-ci
+          aws --endpoint-url=http://localhost:4566 ecr create-repository --repository-name dagger-ci
+
+      - name: Build dagger from source
+        working-directory: dagger
+        run: make dagger-debug
+
+      - name: Expose GitHub Runtime
+        uses: crazy-max/ghaction-github-runtime@v1
+
+      # Update universe from dagger to make it works
+      # FIXME: error with docker.#Stream, current version is outdated
+      - name: Universe Test
+        working-directory: universe
+        run: |
+          export DAGGER_BINARY=$PWD/../dagger/cmd/dagger/dagger-debug
+          git config --global url.git://github.com/.insteadOf https://github.com/
+          make universe-test
+
+  doc:
+    needs: setup
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      localstack:
+        image: localstack/localstack:0.12.16
+        env:
+          SERVICES: s3, cloudformation
+          LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+        ports:
+          - 4566:4566
+          - 4571:4571
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/health"
+          --health-start-period 5s
+          --health-timeout 5s
+          --health-interval 5s
+          --health-retries 10
+
+    steps:
+      - name: Restore set up
+        uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: |
+            /usr/local/bin/cue
+            /usr/local/bin/sops
+            ~/.config/dagger/keys.txt
+            universe
+            dagger
+          key: ${{ github.sha }}-latest
+
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+
+      - name: Build dagger from source
+        working-directory: dagger
+        run: make dagger-debug
+
+      - name: Run local registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Write kind configuration
+        run: |
+          echo 'kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
+              endpoint = ["http://registry:5000"]' > ./kind-config.yaml
+          cat ./kind-config.yaml
+
+      - name: Setup Kind Kubernetes Cluster
+        uses: helm/kind-action@v1.2.0
+        with:
+          config: "./kind-config.yaml"
+
+      - name: Connect registry to cluster
+        run: |
+          docker network connect kind registry
+
+      - name: Expose GitHub Runtime
+        uses: crazy-max/ghaction-github-runtime@v1
+
+      # FIXME
+      # Should we move universe to dagger repository
+      # And then execute make docs-test ?
+      # OR
+      # Should we move doc tests?
+      # But then we will have two sources of truth
+      # about the documentation
