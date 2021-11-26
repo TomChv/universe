@@ -138,7 +138,7 @@ import (
 					TARGET_HOST:     registry.target
 					DOCKER_USERNAME: registry.username
 				}
-				mount: "/password": secret: registry.password
+				mount: "/password": secret: registry.secret
 			}
 		},
 
@@ -205,9 +205,6 @@ import (
 				}
 			}
 			"mount": {
-				if ssh == _|_ {
-					"/var/run/docker.sock": from: "docker.sock"
-				}
 				if ssh != _|_ {
 					if ssh.key != _|_ {
 						"/key": secret: ssh.key

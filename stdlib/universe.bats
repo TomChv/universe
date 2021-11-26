@@ -23,6 +23,12 @@ setup() {
   dagger -e go up
 }
 
+@test "http" {
+  dagger -e http up
+  CONTAINER=$(docker container ls -q --filter "name=daggerci-test-wait-*")
+  docker stop "$CONTAINER" && docker rm "$CONTAINER"
+}
+
 @test "js/yarn" {
   dagger -e js-yarn up
 }
@@ -82,7 +88,8 @@ setup() {
 @test "docker run: ports" {
   dagger -e docker-run-ports up
   CONTAINER=$(docker container ls -q --filter "name=daggerci-test-ports-*")
-  until docker inspect --format "{{json .State.Status }}" "$CONTAINER" | grep -m 1 "running"; do sleep 1 ; done
+  SECONDS=0 
+  while [[ "$(docker inspect --format '{{json .State.Status }}' todoapp | grep -m 1 'running')" != "running" && $SECONDS -lt 45 ]]; do sleep 1 ; done
   run curl -f -LI http://localhost:8080
   assert_output --partial '200 OK'
   docker stop "$CONTAINER" && docker rm "$CONTAINER"
@@ -143,6 +150,9 @@ setup() {
 
   # Copy deployment to sandbox
   copy_to_sandbox kubernetes-deployment kubernetes
+
+  # Query
+  dagger --project "$DAGGER_SANDBOX" -e kubernetes-deployment query
 
   # Set kubeconfig
   dagger --project "$DAGGER_SANDBOX" -e kubernetes-deployment input text TestKubeconfig -f "$HOME"/.kube/config
@@ -245,7 +255,7 @@ setup() {
   dagger -e argocd-infra up
 
   # Wait for infra to be ready
-  kubectl -n argocd wait --for=condition=available deployment -l "app.kubernetes.io/part-of=argocd" --timeout=45s
+  kubectl -n argocd wait --for=condition=available deployment -l "app.kubernetes.io/part-of=argocd" --timeout=100s
 
   # Forward port
   # We need to kill subprocess to avoid infinity loop
@@ -269,4 +279,8 @@ setup() {
 @test "azure-stapp" {
     skip "Azure CI infra not implemented yet - manually tested and working"
     #dagger -e azure-stapp up
+}
+
+@test "trivy" {
+  dagger -e trivy up
 }

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/gofrs/flock"
 )
 
 var (
@@ -15,11 +17,23 @@ var (
 	//go:embed **/*.cue **/*/*.cue
 	FS embed.FS
 
-	PackageName = "alpha.dagger.io"
-	Path        = path.Join("cue.mod", "pkg", PackageName)
+	PackageName  = "alpha.dagger.io"
+	Path         = path.Join("cue.mod", "pkg", PackageName)
+	lockFilePath = path.Join("cue.mod", "dagger.lock")
 )
 
 func Vendor(ctx context.Context, mod string) error {
+	lockFilePath := path.Join(mod, lockFilePath)
+	fileLock := flock.New(lockFilePath)
+	if err := fileLock.Lock(); err != nil {
+		return err
+	}
+
+	defer func() {
+		fileLock.Unlock()
+		os.Remove(lockFilePath)
+	}()
+
 	// Remove any existing copy of the universe
 	if err := os.RemoveAll(path.Join(mod, Path)); err != nil {
 		return err

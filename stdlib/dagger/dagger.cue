@@ -18,7 +18,7 @@ import (
 #Stream: {
 	@dagger(stream)
 
-	unix: string
+	id: string
 }
 
 // Secret value
