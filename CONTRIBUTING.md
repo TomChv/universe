@@ -2,16 +2,16 @@
 
 ## GitHub Workflow
 
-The recommended workflow is to clone the repository from `dagger/dagger` and
+The recommended workflow is to clone the repository from `dagger/universe` and
 open pull requests from your own fork.
 
 ### 1) Cloning the repository
 
 ```sh
-git clone https://github.com/dagger/dagger.git
+git clone https://github.com/dagger/universe.git
 ```
 
-**NOTE**: If you cloned your fork, either switch back to `dagger/dagger` using
+**NOTE**: If you cloned your fork, either switch back to `dagger/universe` using
 `git remote` or start over.
 
 ### 2) Forking
@@ -35,16 +35,16 @@ git checkout -b mybranch
 # push the branch to your own fork
 git push -u fork mybranch
 
-# create a pull request from https://github.com/dagger/dagger
+# create a pull request from https://github.com/dagger/universe
 ```
 
 ### 4) Rebasing
 
 ```sh
 git checkout main
-git pull  # <-- this will pull from `dagger/dagger`
+git pull  # <-- this will pull from `dagger/universe`
 git checkout mybranch
-git rebase main  # <-- this will rebase `dagger/dagger` into your `FORK/dagger`
+git rebase main  # <-- this will rebase `dagger/universe` into your `FORK/universe`
 git push -f -u fork mybranch  # <-- update the pull request
 ```
 
@@ -55,7 +55,7 @@ git push -f -u fork mybranch  # <-- update the pull request
 Contributions to this project must be accompanied by a Developer Certificate of
 Origin (DCO).
 
-All commit messages must contain the Signed-off-by line with an email address that matches the commit author. When commiting, use the `--signoff` flag:
+All commit messages must contain the Signed-off-by line with an email address that matches the commit author. When committing, use the `--signoff` flag:
 
 ```sh
 git commit -s
@@ -71,7 +71,7 @@ Guidelines:
 
 - Group Commits: Each commit should represent a meaningful change (e.g. implement
   feature X, fix bug Y, ...).
-- For instance, a PR should not look like _1) Add Feature X 2) Fix Typo 3) Changes to features X 5) Bugfix for feature X 6) Fix Linter 7) ..._<br>
+- For instance, a PR should not look like _1) Add Feature X 2) Fix Typo 3) Changes to feature X 5) Bugfix for feature X 6) Fix Linter 7) ..._<br>
   Instead, these commits should be squashed together into a single "Add Feature" commit.
 - Each commit should work on its own: it must compile, pass the linter and so on.
 - This makes life much easier when using `git log`, `git blame`, `git bisect`, etc.
@@ -91,7 +91,7 @@ Guidelines:
 Link to markdown files (`[link](../foo.md)`) instead of relative URLs
 (`[link](/foo)`).
 
-The docs compiler will replace file links with relative URLs automatically.
+The docs' compiler will replace file links with relative URLs automatically.
 
 This is to avoid broken links. If a file gets renamed, the compiler will
 catch broken links and throw an error. Relative URLs get broken unnoticed.
@@ -108,5 +108,5 @@ First install `markdownlint-cli`:
 Then from the repository root:
 
 ```console
-markdownlint -c .markdownlint.yaml docs/**/*.md
+markdownlint -c .markdownlint.yaml **/*.md
 ```
